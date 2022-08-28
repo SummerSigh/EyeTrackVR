@@ -1,9 +1,9 @@
 ---
-layout: default
+layout: page
 title: The Mount Maker's Guide to the Galaxy
-nav_order: 13
-has_children: false
-permalink: /MMGTTG/
+permalink: /TMMGTTG/
+nav_order: 3
+parent: How to build
 ---
 
 # Welcome to the Mount Maker's Guide to the Galaxy!
