@@ -54,4 +54,4 @@ Eye tracking is a tricky, finicky thing. Normally, when companies intergrate eye
 
 
 
-*Writen by Summer: AI and Algorithms Engineer for EyeTrackVR
+*Writen by Summer: AI and Algorithms Engineer for EyeTrackVR*
