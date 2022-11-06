@@ -4,6 +4,10 @@ import threading
 import queue
 import cv2
 
+import serial
+import numpy as np
+import time
+
 WAIT_TIME = 0.1
 
 
@@ -33,6 +37,7 @@ class Camera:
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
         self.wired_camera: "cv2.VideoCapture" = None
+        self.serial_connection = None
         self.error_message = "Capture source {} not found, retrying"
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
@@ -50,6 +55,13 @@ class Camera:
                 self.config.capture_source != None and self.config.capture_source != ""
             ):
                 if (
+                    self.serial_connection is None
+                    and self.current_capture_source == "COM9"
+                ):
+                    port = self.current_capture_source
+                    print(type(port))
+                    self.serial_connection = start_serial_connection(port)
+                elif (
                     self.wired_camera is None
                     or not self.wired_camera.isOpened()
                     or self.camera_status == CameraState.DISCONNECTED
@@ -96,6 +108,71 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             pass
 
+    def get_serial_camera_picture(self, should_push, serialInst: serial):
+        start = time.time()
+        try:
+            if self.serial_connection.in_waiting:
+                print("Serial")
+                bytes += self.serial_connection.read(4096)  # Read in initial bytes
+
+                a = bytes.find(b'\xff\xd8') # Find start byte for jpeg image
+                b = bytes.find(b'\xff\xd9') # Fine end byte for jpeg image
+
+                # If the first found end byte is before the start byte, keep reading in serial
+                # data and discarding the old data until the start byte is before the end byte
+                # - I believe this may be a poor implentation and discards useful data but it
+                # requires more testing to verify this.
+                while a > b:
+                    print("less")
+                    bytes = bytes[a:]
+                    a = bytes.find(b'\xff\xd8')
+                    b = bytes.find(b'\xff\xd9')
+                    if a == -1 or b == -1:
+                        bytes += self.serial_connection.read(2048)
+                    #print(a)
+                    #print(b)
+
+                #print(a)
+                #print(b)
+                if a != -1 and b != -1: # If there is jpeg data
+                    #size = len(bytes)
+                    jpg = bytes[a:b+2]  # Create the string of bytes for the current jpeg
+                    bytes = bytes[b+2:] # Clear the buffer until the end of our current jpeg
+                    print(len(jpg))
+            
+                    if jpg:
+                        # Create jpeg frame from byte string
+                        image = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+                        frame_number = 1 # I don't think this is good
+                        fps = 1/(time.time() - start)   # Calculate FPS - This could use a better implementation
+                        if should_push:
+                            self.push_image_to_queue(image, frame_number, fps)
+
+
+        except:
+            print(
+            "Serial capture source problem, assuming camera disconnected, waiting for reconnect.")
+            self.camera_status = CameraState.DISCONNECTED
+            pass
+
+    # def start_serial_connection(self, port):
+    #     serialInst = serial.Serial()
+    #     print("setting baudrate")
+    #     serialInst.baudrate = 2000000
+    #     print("baudrate set")
+
+    #     serialInst.port = port
+    #     serialInst.setDTR(False)
+    #     serialInst.setRTS(False)
+
+    #     if not serialInst.isOpen():
+    #         print("COM Port already open, there may be another application interfering with the connection")
+    #         return False
+        
+    #     serialInst.open()
+    #     print("port open")
+    #     return serialInst
+
     def push_image_to_queue(self, image, frame_number, fps):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
@@ -106,3 +183,21 @@ class Camera:
             )
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()
+
+def start_serial_connection(port):
+    serialInst = serial.Serial()
+    print("setting baudrate")
+    serialInst.baudrate = 2000000
+    print("baudrate set")
+
+    serialInst.port = port
+    serialInst.setDTR(False)
+    serialInst.setRTS(False)
+
+    if not serialInst.isOpen():
+        print("COM Port already open, there may be another application interfering with the connection")
+        return False
+        
+    serialInst.open()
+    print("port open")
+    return serialInst
