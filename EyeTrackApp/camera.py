@@ -59,7 +59,7 @@ class Camera:
                     and self.current_capture_source == "COM9"
                 ):
                     port = self.current_capture_source
-                    print(type(port))
+                    
                     self.serial_connection = start_serial_connection(port)
                 elif (
                     self.wired_camera is None
@@ -85,8 +85,9 @@ class Camera:
             # python event as a contextless, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
-
-            self.get_wired_camera_picture(should_push)
+            
+            self.get_serial_camera_picture(should_push)
+            #self.get_wired_camera_picture(should_push)
             if not should_push:
                 # if we get all the way down here, consider ourselves connected
                 self.camera_status = CameraState.CONNECTED
@@ -108,9 +109,11 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             pass
 
-    def get_serial_camera_picture(self, should_push, serialInst: serial):
+    def get_serial_camera_picture(self, should_push):
         start = time.time()
+        print("get serial camera")
         try:
+            bytes = b''
             if self.serial_connection.in_waiting:
                 print("Serial")
                 bytes += self.serial_connection.read(4096)  # Read in initial bytes
@@ -148,8 +151,10 @@ class Camera:
                         if should_push:
                             self.push_image_to_queue(image, frame_number, fps)
 
-
-        except:
+        except UnboundLocalError as ex:
+            print(ex)
+        except Exception as ex:
+            print(ex.__class__)
             print(
             "Serial capture source problem, assuming camera disconnected, waiting for reconnect.")
             self.camera_status = CameraState.DISCONNECTED
@@ -196,7 +201,7 @@ def start_serial_connection(port):
 
     if not serialInst.isOpen():
         print("COM Port already open, there may be another application interfering with the connection")
-        return False
+        
         
     serialInst.open()
     print("port open")
