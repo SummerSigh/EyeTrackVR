@@ -10,7 +10,7 @@ import time
 
 WAIT_TIME = 0.1
 
-
+frame_number = 0 
 class CameraState(Enum):
     CONNECTING = 0
     CONNECTED = 1
@@ -146,7 +146,8 @@ class Camera:
                     if jpg:
                         # Create jpeg frame from byte string
                         image = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-                        frame_number = 1 # I don't think this is good
+                        if image: 
+                            frame_number = frame_number + 1
                         fps = 1/(time.time() - start)   # Calculate FPS - This could use a better implementation
                         if should_push:
                             self.push_image_to_queue(image, frame_number, fps)
